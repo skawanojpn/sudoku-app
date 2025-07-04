@@ -2,7 +2,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { SudokuGrid as GridType, createEmptySudokuGrid } from '@/lib/sudokuUtils';
-// import { createWorker, PSM, Worker } from 'tesseract.js'; // 静的インポートは削除
 
 interface SudokuScannerProps {
   onSudokuDetected: (grid: GridType) => void;
@@ -91,19 +90,17 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
         const Tesseract = await import('tesseract.js');
         const { createWorker, PSM } = Tesseract; 
 
-        // ★修正点: createWorkerからlangオプションを削除し、loggerのみを渡す
-        workerInstance = await createWorker({ 
-            logger: (m: any) => console.log(m), // Tesseract.jsのログを開発コンソールに表示
-        });
+        // ★修正点: createWorkerを引数なしで呼び出す
+        workerInstance = await createWorker(); 
         
-        await workerInstance.load(); // ライブラリのコア部分をロード
-        // langオプションをcreateWorkerから削除したため、loadLanguageとinitializeは必須
-        await workerInstance.loadLanguage('eng'); // ★言語データをロード
-        await workerInstance.initialize('eng'); // ★言語で初期化
+        // loggerはcreateWorkerのオプションとして渡せないので、ここでは省略します。
+
+        await workerInstance.load(); 
+        await workerInstance.loadLanguage('eng'); 
+        await workerInstance.initialize('eng'); 
 
         await workerInstance.setParameters({
             tessedit_char_whitelist: '0123456789',
-            // 例: 'tessedit_pageseg_mode': PSM.SINGLE_BLOCK, // PSMはTesseractから取得
         });
         setTesseractWorker(workerInstance);
         setWorkerReady(true);
