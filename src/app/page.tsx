@@ -1,14 +1,13 @@
-// src/app/page.tsx
 'use client'; // クライアントコンポーネントとしてマーク
 
 import React, { useState } from 'react';
 import SudokuScanner from '@/components/SudokuScanner';
-import SudokuSolver from '@/components/SudokuSolver'; // SudokuSolverをインポート
+import SudokuSolver from '@/components/SudokuSolver';
 import { SudokuGrid as GridType, createEmptySudokuGrid } from '@/lib/sudokuUtils';
 
 export default function Home() {
   const [scannedGrid, setScannedGrid] = useState<GridType>(createEmptySudokuGrid());
-  const [activeTab, setActiveTab] = useState<'scanner' | 'solver'>('scanner'); // タブの状態を管理
+  const [activeTab, setActiveTab] = useState<'scanner' | 'solver'>('scanner');
 
   const handleSudokuDetected = (grid: GridType) => {
     setScannedGrid(grid);
@@ -46,7 +45,7 @@ export default function Home() {
             <SudokuScanner onSudokuDetected={handleSudokuDetected} language="ja" />
           )}
           {activeTab === 'solver' && (
-            <SudokuSolver initialGrid={scannedGrid} /> {/* スキャンされたグリッドをソルバーに渡す */}
+            <SudokuSolver initialGrid={scannedGrid} />
           )}
         </div>
       </div>
