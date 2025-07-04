@@ -2,8 +2,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { SudokuGrid as GridType, createEmptySudokuGrid } from '@/lib/sudokuUtils';
-// ★Tesseract.jsからWorker型もインポート
-import { createWorker, PSM, Worker } from 'tesseract.js'; 
+// ★Tesseract.jsのインポートは削除します（以下で動的にインポートします）
+// import { createWorker, PSM, Worker } from 'tesseract.js'; 
 
 interface SudokuScannerProps {
   onSudokuDetected: (grid: GridType) => void;
@@ -21,7 +21,9 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Tesseract.js Workerの状態管理
-  const [tesseractWorker, setTesseractWorker] = useState<Tesseract.Worker | null>(null);
+  // 動的インポートのため、一時的に型を 'any' にします。
+  // 必要であれば、より厳密な型定義を追加できますが、ビルド通過を優先します。
+  const [tesseractWorker, setTesseractWorker] = useState<any | null>(null); 
   const [workerReady, setWorkerReady] = useState(false);
 
   const texts = {
@@ -86,24 +88,30 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
   // Tesseract.js Workerの初期化
   useEffect(() => {
+    let workerInstance: any | null = null; // クリーンアップ用にインスタンスを保持
     const initializeWorker = async () => {
       showStatus(t.loadingOCR, 'processing');
       try {
-        // ★Tesseract.js v5の推奨されるcreateWorkerの呼び出し方法に修正
-        const worker: Worker = await createWorker({ // ★Worker型を明示的に指定
-            logger: (m) => console.log(m), // Tesseract.jsのログを開発コンソールに表示
+        // ★Tesseract.jsを動的にインポート
+        const Tesseract = await import('tesseract.js');
+        // createWorkerとPSMを動的にインポートしたTesseractオブジェクトから取得
+        const { createWorker, PSM } = Tesseract; 
+
+        // Tesseract.js v5の推奨されるcreateWorkerの呼び出し方法
+        workerInstance = await createWorker({ 
+            lang: 'eng', // 言語をオプションとして渡す
+            logger: (m: any) => console.log(m), // Tesseract.jsのログを開発コンソールに表示
         });
         
-        await worker.load(); // ★ライブラリのコア部分をロード
-        await worker.loadLanguage('eng'); // ★言語データをロード
-        await worker.initialize('eng'); // ★言語で初期化
+        await workerInstance.load(); // ライブラリのコア部分をロード
+        await workerInstance.loadLanguage('eng'); // 言語データをロード
+        await workerInstance.initialize('eng'); // 言語で初期化
 
-        await worker.setParameters({
+        await workerInstance.setParameters({
             tessedit_char_whitelist: '0123456789',
-            // PSM (Page Segmentation Mode) をここで設定することも可能
-            // 例: 'tessedit_pageseg_mode': PSM.SINGLE_BLOCK, // PSM.SINGLE_BLOCK = 3
+            // 例: 'tessedit_pageseg_mode': PSM.SINGLE_BLOCK, // PSMはTesseractから取得
         });
-        setTesseractWorker(worker);
+        setTesseractWorker(workerInstance);
         setWorkerReady(true);
         showStatus(t.ocrReady, 'success');
       } catch (error) {
@@ -112,19 +120,21 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
       }
     };
 
-    if (!tesseractWorker) {
+    // workerReadyがfalseの場合のみ初期化を試みる
+    if (!workerReady) { 
       initializeWorker();
     }
 
     return () => {
       // コンポーネントのアンマウント時にワーカーを終了
-      if (tesseractWorker) {
-        tesseractWorker.terminate();
-        setTesseractWorker(null);
-        setWorkerReady(false);
+      if (workerInstance) { // useEffectの現在の実行スコープのworkerInstanceを使用
+        workerInstance.terminate();
       }
     };
-  }, [tesseractWorker, t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus]);
+    // 依存配列にtesseractWorkerを含めないことで、初期化が無限ループになるのを防ぐ
+    // workerReadyは、初期化を一度だけ実行するためのフラグとして使用
+  }, [t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus, workerReady]);
+
 
   const showStatus = useCallback((message: string, type: StatusType = 'processing') => {
     setStatusMessage(message);
@@ -145,7 +155,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
     return new Promise<void>((resolve) => {
       const img = new Image();
-      img.onload = async function() { // async functionに変更
+      img.onload = async function() { 
         showStatus(t.analyzingImage, 'processing');
 
         const canvas = analysisCanvasRef.current;
@@ -159,7 +169,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
           return resolve();
         }
 
-        const maxSize = 800; // キャンバスの最大サイズを調整 (OCR処理のため大きめに)
+        const maxSize = 800; 
         let { width, height } = img;
         if (width > height) {
           if (width > maxSize) {
@@ -179,7 +189,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
         // OCRを実行
         try {
-          // キャンバス要素を直接Tesseract.jsに渡す
           const { data: { text, words } } = await tesseractWorker.recognize(canvas);
 
           console.log('OCR Raw Text:', text);
@@ -190,22 +199,16 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
           const cellHeight = canvas.height / 9;
           let digitsFound = 0;
 
-          // 認識された各単語（数字）を数独グリッドにマッピング
           words.forEach(word => {
             const digit = word.text.trim();
-            // 1桁の数字（1-9）のみを対象とする
             if (digit.length === 1 && digit >= '1' && digit <= '9') {
-              // 単語の中心座標から対応するセルを特定
               const centerX = (word.bbox.x0 + word.bbox.x1) / 2;
               const centerY = (word.bbox.y0 + word.bbox.y1) / 2;
 
               const col = Math.floor(centerX / cellWidth);
               const row = Math.floor(centerY / cellHeight);
 
-              // グリッド範囲内か確認
               if (row >= 0 && row < 9 && col >= 0 && col < 9) {
-                // 既にそのセルに数字がある場合は、より中央に近いものを採用するなどのロジックを追加可能
-                // 今回はシンプルに、最初に検出された数字を採用
                 if (detectedGrid[row][col] === '') {
                   detectedGrid[row][col] = digit;
                   digitsFound++;
@@ -219,9 +222,9 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
             setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。認識された数字の数: ${digitsFound}`);
             showStatus(t.analysisComplete, 'success');
           } else {
-            onSudokuDetected(createEmptySudokuGrid()); // 数字が見つからない場合は空のグリッドを渡す
+            onSudokuDetected(createEmptySudokuGrid()); 
             setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
-            showStatus(t.noDigitsFound, 'error'); // 数字が見つからなかった場合
+            showStatus(t.noDigitsFound, 'error'); 
           }
 
 
@@ -240,12 +243,11 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
       img.src = URL.createObjectURL(imageBlob);
     });
-  }, [onSudokuDetected, showStatus, workerReady, tesseractWorker, t]); // 依存関係にtesseractWorkerとworkerReadyを追加
+  }, [onSudokuDetected, showStatus, workerReady, tesseractWorker, t]); 
 
   const processImage = useCallback(async (imageBlob: Blob) => {
     if (!workerReady) {
       showStatus(t.loadingOCR, 'processing');
-      // OCRワーカーが準備できていない場合は処理を中断し、準備完了後に再試行を促す
       return;
     }
     try {
@@ -289,7 +291,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   }, []);
 
   const handleReanalyze = useCallback(() => {
-    // 現在のプレビュー画像URLがあれば、それを再利用してOCRを再実行
     if (previewImageUrl) {
       showStatus(t.analyzingImage, 'processing');
       const img = new Image();
@@ -297,7 +298,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
           const canvas = analysisCanvasRef.current;
           const ctx = canvas?.getContext('2d');
           if (canvas && ctx) {
-              ctx.clearRect(0, 0, canvas.width, canvas.height); // キャンバスをクリア
+              ctx.clearRect(0, 0, canvas.width, canvas.height); 
               const maxSize = 800;
               let { width, height } = img;
               if (width > height) {
@@ -315,7 +316,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
               canvas.height = height;
               ctx.drawImage(img, 0, 0, width, height);
 
-              // 再解析を実行
               if (tesseractWorker) {
                 tesseractWorker.recognize(canvas).then(({ data: { words } }) => {
                     const detectedGrid: GridType = createEmptySudokuGrid();
@@ -364,7 +364,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
     setPreviewImageUrl(null);
     setAnalysisInfo(null);
     hideStatus();
-    onSudokuDetected(createEmptySudokuGrid()); // グリッドをクリアする
+    onSudokuDetected(createEmptySudokuGrid()); 
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -401,7 +401,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
             type="file"
             id="fileInput"
             accept="image/*"
-            capture="environment" // スマートフォンでカメラを直接起動
+            capture="environment" 
             onChange={handleFileInputChange}
             className="hidden"
             ref={fileInputRef}
@@ -454,7 +454,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
         <div className="controls flex justify-center gap-4 my-6 flex-wrap">
           <Button
             onClick={handleReanalyze}
-            disabled={!workerReady || !previewImageUrl} // ワーカー準備完了かつ画像がある場合のみ有効
+            disabled={!workerReady || !previewImageUrl} 
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
           >
             {t.reAnalyze}
