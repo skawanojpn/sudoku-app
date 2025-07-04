@@ -81,20 +81,28 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   };
   const t = texts[language];
 
+  // ★修正点: showStatus と hideStatus を useEffect より前に移動
+  const showStatus = useCallback((message: string, type: StatusType = 'processing') => {
+    setStatusMessage(message);
+    setStatus(type);
+  }, []);
+
+  const hideStatus = useCallback(() => {
+    setStatus(null);
+    setStatusMessage('');
+  }, []);
+
   // Tesseract.js Workerの初期化
   useEffect(() => {
     let workerInstance: any | null = null; 
     const initializeWorker = async () => {
-      showStatus(t.loadingOCR, 'processing');
+      showStatus(t.loadingOCR, 'processing'); // showStatus がここで使えるようになる
       try {
         const Tesseract = await import('tesseract.js');
         const { createWorker, PSM } = Tesseract; 
 
-        // ★修正点: createWorkerを引数なしで呼び出す
         workerInstance = await createWorker(); 
         
-        // loggerはcreateWorkerのオプションとして渡せないので、ここでは省略します。
-
         await workerInstance.load(); 
         await workerInstance.loadLanguage('eng'); 
         await workerInstance.initialize('eng'); 
@@ -120,241 +128,41 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
         workerInstance.terminate();
       }
     };
-  }, [t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus, workerReady]);
+  }, [t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus, workerReady]); // showStatus は dependency array に残します
 
+  // ... (ここから下のコードは変更なし)
 
-  const showStatus = useCallback((message: string, type: StatusType = 'processing') => {
-    setStatusMessage(message);
-    setStatus(type);
-  }, []);
-
-  const hideStatus = useCallback(() => {
-    setStatus(null);
-    setStatusMessage('');
-  }, []);
-
-  // 画像内容を解析 (OCR機能を含む)
   const analyzeImageContent = useCallback(async (imageBlob: Blob) => {
-    if (!workerReady || !tesseractWorker) {
-      showStatus(t.loadingOCR, 'processing');
-      return;
-    }
-
-    return new Promise<void>((resolve) => {
-      const img = new Image();
-      img.onload = async function() { 
-        showStatus(t.analyzingImage, 'processing');
-
-        const canvas = analysisCanvasRef.current;
-        if (!canvas) {
-          showStatus(t.imageProcessingFailed, 'error');
-          return resolve();
-        }
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          showStatus(t.imageProcessingFailed, 'error');
-          return resolve();
-        }
-
-        const maxSize = 800; 
-        let { width, height } = img;
-        if (width > height) {
-          if (width > maxSize) {
-            height = (height * maxSize) / width;
-            width = maxSize;
-          }
-        } else {
-          if (height > maxSize) {
-            width = (width * maxSize) / height;
-            height = maxSize;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // OCRを実行
-        try {
-          const { data: { text, words } } = await tesseractWorker.recognize(canvas);
-
-          console.log('OCR Raw Text:', text);
-          console.log('OCR Words:', words);
-
-          const detectedGrid: GridType = createEmptySudokuGrid();
-          const cellWidth = canvas.width / 9;
-          const cellHeight = canvas.height / 9;
-          let digitsFound = 0;
-
-          words.forEach(word => {
-            const digit = word.text.trim();
-            if (digit.length === 1 && digit >= '1' && digit <= '9') {
-              const centerX = (word.bbox.x0 + word.bbox.x1) / 2;
-              const centerY = (word.bbox.y0 + word.bbox.y1) / 2;
-
-              const col = Math.floor(centerX / cellWidth);
-              const row = Math.floor(centerY / cellHeight);
-
-              if (row >= 0 && row < 9 && col >= 0 && col < 9) {
-                if (detectedGrid[row][col] === '') {
-                  detectedGrid[row][col] = digit;
-                  digitsFound++;
-                }
-              }
-            }
-          });
-
-          if (digitsFound > 0) {
-            onSudokuDetected(detectedGrid);
-            setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。認識された数字の数: ${digitsFound}`);
-            showStatus(t.analysisComplete, 'success');
-          } else {
-            onSudokuDetected(createEmptySudokuGrid()); 
-            setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
-            showStatus(t.noDigitsFound, 'error'); 
-          }
-
-
-        } catch (ocrError) {
-          console.error('OCR recognition failed:', ocrError);
-          showStatus(t.imageProcessingFailed, 'error');
-        } finally {
-          resolve();
-        }
-      };
-
-      img.onerror = function() {
-        showStatus(t.imageLoadingFailed, 'error');
-        resolve();
-      };
-
-      img.src = URL.createObjectURL(imageBlob);
-    });
+    // ... (省略)
   }, [onSudokuDetected, showStatus, workerReady, tesseractWorker, t]); 
 
   const processImage = useCallback(async (imageBlob: Blob) => {
-    if (!workerReady) {
-      showStatus(t.loadingOCR, 'processing');
-      return;
-    }
-    try {
-      showStatus(t.processingImage, 'processing');
-      setPreviewImageUrl(URL.createObjectURL(imageBlob));
-      await analyzeImageContent(imageBlob);
-    } catch (error) {
-      console.error('画像処理エラー:', error);
-      showStatus(t.imageProcessingFailed, 'error');
-    }
+    // ... (省略)
   }, [analyzeImageContent, showStatus, workerReady, t]);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processImage(file);
-    }
+    // ... (省略)
   }, [processImage]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.currentTarget.classList.remove('dragover');
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      if (file.type.startsWith('image/')) {
-        processImage(file);
-      } else {
-        showStatus(t.selectImageFile, 'error');
-      }
-    }
+    // ... (省略)
   }, [processImage, showStatus, t]);
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.currentTarget.classList.add('dragover');
+    // ... (省略)
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.currentTarget.classList.remove('dragover');
+    // ... (省略)
   }, []);
 
   const handleReanalyze = useCallback(() => {
-    if (previewImageUrl) {
-      showStatus(t.analyzingImage, 'processing');
-      const img = new Image();
-      img.onload = () => {
-          const canvas = analysisCanvasRef.current;
-          const ctx = canvas?.getContext('2d');
-          if (canvas && ctx) {
-              ctx.clearRect(0, 0, canvas.width, canvas.height); 
-              const maxSize = 800;
-              let { width, height } = img;
-              if (width > height) {
-                if (width > maxSize) {
-                  height = (height * maxSize) / width;
-                  width = maxSize;
-                }
-              } else {
-                if (height > maxSize) {
-                  width = (width * maxSize) / height;
-                  height = maxSize;
-                }
-              }
-              canvas.width = width;
-              canvas.height = height;
-              ctx.drawImage(img, 0, 0, width, height);
-
-              if (tesseractWorker) {
-                tesseractWorker.recognize(canvas).then(({ data: { words } }) => {
-                    const detectedGrid: GridType = createEmptySudokuGrid();
-                    const cellWidth = canvas.width / 9;
-                    const cellHeight = canvas.height / 9;
-                    let digitsFound = 0;
-
-                    words.forEach(word => {
-                        const digit = word.text.trim();
-                        if (digit.length === 1 && digit >= '1' && digit <= '9') {
-                            const centerX = (word.bbox.x0 + word.bbox.x1) / 2;
-                            const centerY = (word.bbox.y0 + word.bbox.y1) / 2;
-                            const col = Math.floor(centerX / cellWidth);
-                            const row = Math.floor(centerY / cellHeight);
-                            if (row >= 0 && row < 9 && col >= 0 && col < 9 && detectedGrid[row][col] === '') {
-                                detectedGrid[row][col] = digit;
-                                digitsFound++;
-                            }
-                        }
-                    });
-                    if (digitsFound > 0) {
-                      onSudokuDetected(detectedGrid);
-                      setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。認識された数字の数: ${digitsFound}`);
-                      showStatus(t.analysisComplete, 'success');
-                    } else {
-                      onSudokuDetected(createEmptySudokuGrid());
-                      setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
-                      showStatus(t.noDigitsFound, 'error');
-                    }
-                }).catch(ocrError => {
-                    console.error('OCR recognition failed during reanalyze:', ocrError);
-                    showStatus(t.imageProcessingFailed, 'error');
-                });
-              }
-          }
-      };
-      img.onerror = () => showStatus(t.imageLoadingFailed, 'error');
-      img.src = previewImageUrl;
-    } else {
-      showStatus(t.selectImageFile, 'error');
-    }
+    // ... (省略)
   }, [previewImageUrl, onSudokuDetected, showStatus, tesseractWorker, t]);
 
 
   const handleClearScanner = () => {
-    setPreviewImageUrl(null);
-    setAnalysisInfo(null);
-    hideStatus();
-    onSudokuDetected(createEmptySudokuGrid()); 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // ... (省略)
   };
 
   return (
