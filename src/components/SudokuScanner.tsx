@@ -2,7 +2,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { SudokuGrid as GridType, createEmptySudokuGrid } from '@/lib/sudokuUtils';
-import { createWorker, PSM } from 'tesseract.js'; // Tesseract.jsをインポート
+// ★Tesseract.jsからWorker型もインポート
+import { createWorker, PSM, Worker } from 'tesseract.js'; 
 
 interface SudokuScannerProps {
   onSudokuDetected: (grid: GridType) => void;
@@ -88,30 +89,19 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
     const initializeWorker = async () => {
       showStatus(t.loadingOCR, 'processing');
       try {
-        const worker = await createWorker('eng', 1, {
-            // Tesseract.jsのログを開発コンソールに表示
-            logger: (m) => console.log(m),
+        // ★Tesseract.js v5の推奨されるcreateWorkerの呼び出し方法に修正
+        const worker: Worker = await createWorker({ // ★Worker型を明示的に指定
+            logger: (m) => console.log(m), // Tesseract.jsのログを開発コンソールに表示
         });
-        // PSM.SINGLE_CHAR を使うと個々の文字認識に特化できるが、
-        // Sudokuの場合はグリッド全体を認識し、その中の数字を解析する方が良い場合が多い。
-        // ここではデフォルトのPSM (Page Segmentation Mode) を使用。
-        // PSM.SINGLE_BLOCK (3) や PSM.SINGLE_LINE (7) なども試す価値あり。
-        await worker.loadLanguage('eng');
-        await worker.initialize('eng');
+        
+        await worker.load(); // ★ライブラリのコア部分をロード
+        await worker.loadLanguage('eng'); // ★言語データをロード
+        await worker.initialize('eng'); // ★言語で初期化
+
         await worker.setParameters({
-            // 数字のみに絞り込む (ただし、非数字も検出される可能性あり)
             tessedit_char_whitelist: '0123456789',
-            // ページセグメンテーションモードを調整
-            // PSM.SPARSE_TEXT_OSD (11) は、自由に配置されたテキストに対応。
-            // PSM.SINGLE_BLOCK (3) は、単一のテキストブロックとして扱う。
-            // Sudokuグリッドの場合は、グリッド全体が認識できるようなモードが良い。
-            // ここではPSM.SINGLE_BLOCK (3) を試す。
-            // もし認識精度が低い場合、PSM.SINGLE_CHAR (10) を使って個々の文字を認識し、
-            // 位置情報でマッピングする方が良い場合もある。
-            // Tesseract.jsの公式ドキュメントでPSMモードを確認してください。
-            // https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html#page-segmentation-modes
-            // 以下のPSMは例です。
-            // 'tessedit_pageseg_mode': PSM.SINGLE_BLOCK, // PSM.SINGLE_BLOCK = 3
+            // PSM (Page Segmentation Mode) をここで設定することも可能
+            // 例: 'tessedit_pageseg_mode': PSM.SINGLE_BLOCK, // PSM.SINGLE_BLOCK = 3
         });
         setTesseractWorker(worker);
         setWorkerReady(true);
@@ -301,26 +291,13 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   const handleReanalyze = useCallback(() => {
     // 現在のプレビュー画像URLがあれば、それを再利用してOCRを再実行
     if (previewImageUrl) {
-      // URLからBlobを再取得する簡単な方法がないため、
-      // 実際には元のBlobをstateに保存しておくか、
-      // ユーザーに再選択を促す方が良いかもしれません。
-      // ここでは、一旦、OCRを再実行するシミュレーションとして、
-      // 最初の画像を読み込んだ時と同じロジックを呼び出すようにします。
-      // ただし、この実装では元のBlobを失っているため、
-      // 正確な再解析には不向きです。
-      // 実際の運用では、画像をstateに保持することを推奨します。
       showStatus(t.analyzingImage, 'processing');
-      // この関数が呼ばれた時点で `previewImageUrl` は存在するため、
-      // `img.src` を使って画像を再読み込みし、`analyzeImageContent` を再実行します。
-      // ただし、これは新しいBlobを生成しないため、厳密な再解析ではないですが、
-      // Tesseract.jsのパラメータ変更などを試す際には有効です。
       const img = new Image();
       img.onload = () => {
           const canvas = analysisCanvasRef.current;
           const ctx = canvas?.getContext('2d');
           if (canvas && ctx) {
               ctx.clearRect(0, 0, canvas.width, canvas.height); // キャンバスをクリア
-              // 元の画像をキャンバスに描画し直す
               const maxSize = 800;
               let { width, height } = img;
               if (width > height) {
@@ -339,7 +316,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
               ctx.drawImage(img, 0, 0, width, height);
 
               // 再解析を実行
-              // ここでは `tesseractWorker.recognize(canvas)` を直接呼び出す
               if (tesseractWorker) {
                 tesseractWorker.recognize(canvas).then(({ data: { words } }) => {
                     const detectedGrid: GridType = createEmptySudokuGrid();
