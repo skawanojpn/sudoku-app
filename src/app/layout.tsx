@@ -1,13 +1,13 @@
 // src/app/layout.tsx
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import '../styles/globals.css'; // グローバルCSSをインポート
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import '@/styles/globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: '数独スキャナー & ソルバー',
-  description: 'カメラで数独をスキャンし、自動で問題を解くWebアプリケーション',
+  title: "Sudoku App",
+  description: "Sudoku Scanner and Solver",
 };
 
 export default function RootLayout({
@@ -16,10 +16,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
-      <body className={inter.className}>
-        {children}
-      </body>
+    <html lang="en">
+      <body className={inter.className}>{children}</body>
     </html>
   );
 }
