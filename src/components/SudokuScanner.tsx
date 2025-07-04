@@ -102,9 +102,9 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
         workerInstance = await createWorker(); 
         
-        await workerInstance.load(); 
-        await workerInstance.loadLanguage('eng'); 
-        await workerInstance.initialize('eng'); 
+        // await workerInstance.load(); 
+        // await workerInstance.loadLanguage('eng'); 
+        // await workerInstance.initialize('eng'); 
 
         await workerInstance.setParameters({
             tessedit_char_whitelist: '0123456789',
@@ -185,7 +185,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
           const cellHeight = canvas.height / 9;
           let digitsFound = 0;
 
-          // ★修正点: word パラメータに TesseractWord 型を明示的に指定
+          // word パラメータに TesseractWord 型を明示的に指定
           (words as TesseractWord[]).forEach((word: TesseractWord) => {
             const digit = word.text.trim();
             if (digit.length === 1 && digit >= '1' && digit <= '9') {
@@ -307,7 +307,8 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
                 // 再解析時も動的にインポートしてWord型を取得
                 import('tesseract.js').then(Tesseract => {
                     type TesseractWord = Tesseract.Word;
-                    tesseractWorker.recognize(canvas).then(({ data: { words } }) => {
+                    // ★修正点: words に型を明示的に指定
+                    tesseractWorker.recognize(canvas).then(({ data: { words } }: { data: { words: TesseractWord[] } }) => {
                         const detectedGrid: GridType = createEmptySudokuGrid();
                         const cellWidth = canvas.width / 9;
                         const cellHeight = canvas.height / 9;
