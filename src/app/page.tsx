@@ -1,5 +1,5 @@
 // src/app/page.tsx
-'use client'; // クライアントコンポーネントとしてマーク
+'use client'; // クライアントコンポーネントとしてマークする
 
 import React, { useState } from 'react';
 import SudokuScanner from '@/components/SudokuScanner';
