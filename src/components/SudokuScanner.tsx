@@ -307,7 +307,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
                 // 再解析時も動的にインポートしてWord型を取得
                 import('tesseract.js').then(Tesseract => {
                     type TesseractWord = Tesseract.Word;
-                    // ★修正点: words に型を明示的に指定
+                    // words に型を明示的に指定
                     tesseractWorker.recognize(canvas).then(({ data: { words } }: { data: { words: TesseractWord[] } }) => {
                         const detectedGrid: GridType = createEmptySudokuGrid();
                         const cellWidth = canvas.width / 9;
@@ -336,7 +336,8 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
                           setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
                           showStatus(t.noDigitsFound, 'error');
                         }
-                    }).catch(ocrError => {
+                    // ★修正点: ocrError に型を明示的に指定
+                    }).catch((ocrError: any) => { 
                         console.error('OCR recognition failed during reanalyze:', ocrError);
                         showStatus(t.imageProcessingFailed, 'error');
                     });
