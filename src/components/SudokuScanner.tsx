@@ -102,14 +102,10 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
         workerInstance = await createWorker(); 
         
-        // ★修正点: 以下のdeprecatedな呼び出しを削除
-        // await workerInstance.load(); 
-        // await workerInstance.loadLanguage('eng'); 
-        // await workerInstance.initialize('eng'); 
+        await workerInstance.load(); 
+        await workerInstance.loadLanguage('eng'); 
+        await workerInstance.initialize('eng'); 
 
-        // Tesseract.jsの最新バージョンでは、createWorker()が呼ばれた時点で
-        // workerは既にロードされ、言語も初期化されているはずです。
-        // パラメータの設定は引き続き必要です。
         await workerInstance.setParameters({
             tessedit_char_whitelist: '0123456789',
         });
@@ -135,7 +131,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
   const analyzeImageContent = useCallback(async (imageBlob: Blob) => {
     if (!workerReady || !tesseractWorker) {
-      // ワーカーが準備できていない場合は、ここからOCR処理に進まないようにします。
       showStatus(t.loadingOCR, 'processing');
       return;
     }
@@ -176,7 +171,10 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
         // OCRを実行
         try {
-          // workerReadyとtesseractWorkerがtrueであることを確認した上でrecognizeを呼び出します
+          // 動的にインポートしたTesseractオブジェクトからWord型を取得
+          const Tesseract = await import('tesseract.js');
+          type TesseractWord = Tesseract.Word; // Word型をエイリアス
+
           const { data: { text, words } } = await tesseractWorker.recognize(canvas);
 
           console.log('OCR Raw Text:', text);
@@ -187,7 +185,8 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
           const cellHeight = canvas.height / 9;
           let digitsFound = 0;
 
-          words.forEach(word => {
+          // ★修正点: word パラメータに TesseractWord 型を明示的に指定
+          (words as TesseractWord[]).forEach((word: TesseractWord) => {
             const digit = word.text.trim();
             if (digit.length === 1 && digit >= '1' && digit <= '9') {
               const centerX = (word.bbox.x0 + word.bbox.x1) / 2;
@@ -305,37 +304,41 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
               ctx.drawImage(img, 0, 0, width, height);
 
               if (tesseractWorker) {
-                tesseractWorker.recognize(canvas).then(({ data: { words } }) => {
-                    const detectedGrid: GridType = createEmptySudokuGrid();
-                    const cellWidth = canvas.width / 9;
-                    const cellHeight = canvas.height / 9;
-                    let digitsFound = 0;
+                // 再解析時も動的にインポートしてWord型を取得
+                import('tesseract.js').then(Tesseract => {
+                    type TesseractWord = Tesseract.Word;
+                    tesseractWorker.recognize(canvas).then(({ data: { words } }) => {
+                        const detectedGrid: GridType = createEmptySudokuGrid();
+                        const cellWidth = canvas.width / 9;
+                        const cellHeight = canvas.height / 9;
+                        let digitsFound = 0;
 
-                    words.forEach(word => {
-                        const digit = word.text.trim();
-                        if (digit.length === 1 && digit >= '1' && digit <= '9') {
-                            const centerX = (word.bbox.x0 + word.bbox.x1) / 2;
-                            const centerY = (word.bbox.y0 + word.bbox.y1) / 2;
-                            const col = Math.floor(centerX / cellWidth);
-                            const row = Math.floor(centerY / cellHeight);
-                            if (row >= 0 && row < 9 && col >= 0 && col < 9 && detectedGrid[row][col] === '') {
-                                detectedGrid[row][col] = digit;
-                                digitsFound++;
+                        (words as TesseractWord[]).forEach((word: TesseractWord) => {
+                            const digit = word.text.trim();
+                            if (digit.length === 1 && digit >= '1' && digit <= '9') {
+                                const centerX = (word.bbox.x0 + word.bbox.x1) / 2;
+                                const centerY = (word.bbox.y0 + word.bbox.y1) / 2;
+                                const col = Math.floor(centerX / cellWidth);
+                                const row = Math.floor(centerY / cellHeight);
+                                if (row >= 0 && row < 9 && col >= 0 && col < 9 && detectedGrid[row][col] === '') {
+                                    detectedGrid[row][col] = digit;
+                                    digitsFound++;
+                                }
                             }
+                        });
+                        if (digitsFound > 0) {
+                          onSudokuDetected(detectedGrid);
+                          setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。認識された数字の数: ${digitsFound}`);
+                          showStatus(t.analysisComplete, 'success');
+                        } else {
+                          onSudokuDetected(createEmptySudokuGrid());
+                          setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
+                          showStatus(t.noDigitsFound, 'error');
                         }
+                    }).catch(ocrError => {
+                        console.error('OCR recognition failed during reanalyze:', ocrError);
+                        showStatus(t.imageProcessingFailed, 'error');
                     });
-                    if (digitsFound > 0) {
-                      onSudokuDetected(detectedGrid);
-                      setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。認識された数字の数: ${digitsFound}`);
-                      showStatus(t.analysisComplete, 'success');
-                    } else {
-                      onSudokuDetected(createEmptySudokuGrid());
-                      setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
-                      showStatus(t.noDigitsFound, 'error');
-                    }
-                }).catch(ocrError => {
-                    console.error('OCR recognition failed during reanalyze:', ocrError);
-                    showStatus(t.imageProcessingFailed, 'error');
                 });
               }
           }
