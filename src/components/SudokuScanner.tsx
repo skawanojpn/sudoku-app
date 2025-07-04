@@ -2,8 +2,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { SudokuGrid as GridType, createEmptySudokuGrid } from '@/lib/sudokuUtils';
-// ★Tesseract.jsのインポートは削除します（以下で動的にインポートします）
-// import { createWorker, PSM, Worker } from 'tesseract.js'; 
+// import { createWorker, PSM, Worker } from 'tesseract.js'; // 静的インポートは削除
 
 interface SudokuScannerProps {
   onSudokuDetected: (grid: GridType) => void;
@@ -20,9 +19,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   const analysisCanvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Tesseract.js Workerの状態管理
-  // 動的インポートのため、一時的に型を 'any' にします。
-  // 必要であれば、より厳密な型定義を追加できますが、ビルド通過を優先します。
   const [tesseractWorker, setTesseractWorker] = useState<any | null>(null); 
   const [workerReady, setWorkerReady] = useState(false);
 
@@ -88,24 +84,22 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
   // Tesseract.js Workerの初期化
   useEffect(() => {
-    let workerInstance: any | null = null; // クリーンアップ用にインスタンスを保持
+    let workerInstance: any | null = null; 
     const initializeWorker = async () => {
       showStatus(t.loadingOCR, 'processing');
       try {
-        // ★Tesseract.jsを動的にインポート
         const Tesseract = await import('tesseract.js');
-        // createWorkerとPSMを動的にインポートしたTesseractオブジェクトから取得
         const { createWorker, PSM } = Tesseract; 
 
-        // Tesseract.js v5の推奨されるcreateWorkerの呼び出し方法
+        // ★修正点: createWorkerからlangオプションを削除し、loggerのみを渡す
         workerInstance = await createWorker({ 
-            lang: 'eng', // 言語をオプションとして渡す
             logger: (m: any) => console.log(m), // Tesseract.jsのログを開発コンソールに表示
         });
         
         await workerInstance.load(); // ライブラリのコア部分をロード
-        await workerInstance.loadLanguage('eng'); // 言語データをロード
-        await workerInstance.initialize('eng'); // 言語で初期化
+        // langオプションをcreateWorkerから削除したため、loadLanguageとinitializeは必須
+        await workerInstance.loadLanguage('eng'); // ★言語データをロード
+        await workerInstance.initialize('eng'); // ★言語で初期化
 
         await workerInstance.setParameters({
             tessedit_char_whitelist: '0123456789',
@@ -120,19 +114,15 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
       }
     };
 
-    // workerReadyがfalseの場合のみ初期化を試みる
     if (!workerReady) { 
       initializeWorker();
     }
 
     return () => {
-      // コンポーネントのアンマウント時にワーカーを終了
-      if (workerInstance) { // useEffectの現在の実行スコープのworkerInstanceを使用
+      if (workerInstance) { 
         workerInstance.terminate();
       }
     };
-    // 依存配列にtesseractWorkerを含めないことで、初期化が無限ループになるのを防ぐ
-    // workerReadyは、初期化を一度だけ実行するためのフラグとして使用
   }, [t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus, workerReady]);
 
 
