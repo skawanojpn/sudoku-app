@@ -3,70 +3,53 @@
 
 import React, { useState } from 'react';
 import SudokuScanner from '@/components/SudokuScanner';
-import SudokuSolverCore from '@/components/SudokuSolverCore';
-import { createEmptySudokuGrid, SudokuGrid as GridType } from '@/lib/sudokuUtils';
-import { Button } from '@/components/ui/button'; // shadcn/uiのButtonをインポート
+import SudokuSolver from '@/components/SudokuSolver'; // SudokuSolverをインポート
+import { SudokuGrid as GridType, createEmptySudokuGrid } from '@/lib/sudokuUtils';
 
-const HomePage: React.FC = () => {
-  const [sudokuGrid, setSudokuGrid] = useState<GridType>(createEmptySudokuGrid());
-  const [language, setLanguage] = useState<'ja' | 'en'>('ja');
+export default function Home() {
+  const [scannedGrid, setScannedGrid] = useState<GridType>(createEmptySudokuGrid());
+  const [activeTab, setActiveTab] = useState<'scanner' | 'solver'>('scanner'); // タブの状態を管理
 
-  const handleSudokuDetected = (detectedGrid: GridType) => {
-    setSudokuGrid(detectedGrid);
+  const handleSudokuDetected = (grid: GridType) => {
+    setScannedGrid(grid);
+    setActiveTab('solver'); // OCR検出後、自動的にソルバータブに切り替える
   };
-
-  const toggleLanguage = () => {
-    setLanguage(prev => (prev === 'ja' ? 'en' : 'ja'));
-  };
-
-  const texts = {
-    ja: {
-      title: '数独スキャナー & ソルバー',
-      languageSwitch: 'EN',
-      solverSectionTitle: '🧩 数独ソルバー'
-    },
-    en: {
-      title: 'Sudoku Scanner & Solver',
-      languageSwitch: 'JA',
-      solverSectionTitle: '🧩 Sudoku Solver'
-    }
-  };
-  const t = texts[language];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-4xl mx-auto">
-        {/* ヘッダー */}
-        <div className="text-center mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <div></div> {/* Placeholder for alignment */}
-            <h1 className="text-4xl font-bold text-gray-800">{t.title}</h1>
-            <Button
-              onClick={toggleLanguage}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-            >
-              {t.languageSwitch}
-            </Button>
-          </div>
+    <div className="min-h-screen bg-gray-100 p-4">
+      <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-xl p-6">
+        <h1 className="text-4xl font-extrabold text-center text-indigo-800 mb-8">
+          数独スキャナー & ソルバー
+        </h1>
+
+        {/* タブナビゲーション */}
+        <div className="flex justify-center mb-6 border-b border-gray-200">
+          <button
+            className={`py-3 px-6 text-lg font-semibold transition-colors duration-300 
+              ${activeTab === 'scanner' ? 'text-indigo-700 border-b-4 border-indigo-700' : 'text-gray-500 hover:text-indigo-700'}`}
+            onClick={() => setActiveTab('scanner')}
+          >
+            スキャナー
+          </button>
+          <button
+            className={`py-3 px-6 text-lg font-semibold transition-colors duration-300 
+              ${activeTab === 'solver' ? 'text-indigo-700 border-b-4 border-indigo-700' : 'text-gray-500 hover:text-indigo-700'}`}
+            onClick={() => setActiveTab('solver')}
+          >
+            ソルバー
+          </button>
         </div>
 
-        {/* 数独スキャナーセクション */}
-        <div className="mb-12">
-          <SudokuScanner onSudokuDetected={handleSudokuDetected} language={language} />
+        {/* タブコンテンツ */}
+        <div className="tab-content">
+          {activeTab === 'scanner' && (
+            <SudokuScanner onSudokuDetected={handleSudokuDetected} language="ja" />
+          )}
+          {activeTab === 'solver' && (
+            <SudokuSolver initialGrid={scannedGrid} /> {/* スキャンされたグリッドをソルバーに渡す */}
+          )}
         </div>
-
-        {/* 数独ソルバーセクション */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-3xl font-bold text-center text-gray-800 mb-6">
-            {t.solverSectionTitle}
-          </h2>
-          <SudokuSolverCore initialGrid={sudokuGrid} language={language} />
-        </div>
-
-        {/* 使い方セクションはSudokuSolverCore内に統合されているため不要 */}
       </div>
     </div>
   );
-};
-
-export default HomePage;
+}
