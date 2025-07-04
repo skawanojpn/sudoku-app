@@ -45,7 +45,7 @@ const SudokuGrid: React.FC<SudokuGridProps> = ({
             }}
             type="text"
             maxLength={1}
-            value={cell === 0 ? '' : cell} // 0を空文字として表示
+            value={cell} // ★修正点1: 0との比較を削除し、cellの値を直接使用
             onChange={(e) => {
               const value = e.target.value.replace(/[^1-9]/g, ''); // 1-9以外の入力を除去
               onCellChange(rowIndex, colIndex, value);
@@ -54,7 +54,8 @@ const SudokuGrid: React.FC<SudokuGridProps> = ({
             onClick={() => onCellClick(rowIndex, colIndex)}
             className={`
               w-12 h-12 text-center text-xl font-bold border-2
-              ${grid[rowIndex][colIndex] !== '' && grid[rowIndex][colIndex] !== 0 ? 'bg-green-50 border-green-300' : 'bg-white border-gray-300'}
+              // ★修正点2: 0との比較を削除し、空文字列との比較に変更
+              ${grid[rowIndex][colIndex] !== '' ? 'bg-green-50 border-green-300' : 'bg-white border-gray-300'}
               ${selectedCell[0] === rowIndex && selectedCell[1] === colIndex ? 'ring-2 ring-blue-500 ring-offset-1' : ''}
               focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
               ${(rowIndex + 1) % 3 === 0 && rowIndex !== 8 ? 'border-b-4 border-b-gray-800' : ''}
