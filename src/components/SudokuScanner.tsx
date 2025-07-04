@@ -96,39 +96,39 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
     let workerInstance: any | null = null; 
     const initializeWorker = async () => {
       showStatus(t.loadingOCR, 'processing'); 
-      console.log("Tesseract worker initialization started..."); // LOG
+      console.log("Tesseract worker initialization started...");
       try {
         const Tesseract = await import('tesseract.js');
-        console.log("Tesseract module imported successfully."); // LOG
+        console.log("Tesseract module imported successfully.");
         const { createWorker } = Tesseract; 
 
-        console.log("Calling createWorker()..."); // LOG
-        workerInstance = await createWorker(); // Keep default behavior for now, test CDN paths later if needed
-        console.log("createWorker() completed. Worker instance:", workerInstance); // LOG
+        console.log("Calling createWorker()...");
+        workerInstance = await createWorker();
+        console.log("createWorker() completed. Worker instance:", workerInstance);
         
-        console.log("Loading worker..."); // LOG
+        console.log("Loading worker...");
         await workerInstance.load(); 
-        console.log("Worker loaded successfully."); // LOG
+        console.log("Worker loaded successfully.");
         
-        console.log("Loading 'eng' language..."); // LOG
+        console.log("Loading 'eng' language...");
         await workerInstance.loadLanguage('eng'); 
-        console.log("'eng' language loaded successfully."); // LOG
+        console.log("'eng' language loaded successfully.");
         
-        console.log("Initializing worker with 'eng'..."); // LOG
+        console.log("Initializing worker with 'eng'...");
         await workerInstance.initialize('eng'); 
-        console.log("Worker initialized successfully."); // LOG
+        console.log("Worker initialized successfully.");
 
         await workerInstance.setParameters({
             tessedit_char_whitelist: '0123456789',
         });
-        console.log("Tesseract parameters set."); // LOG
+        console.log("Tesseract parameters set.");
 
         setTesseractWorker(workerInstance);
         setWorkerReady(true);
         showStatus(t.ocrReady, 'success');
-        console.log("Tesseract worker is ready and state updated."); // LOG
+        console.log("Tesseract worker is ready and state updated.");
       } catch (error) {
-        console.error('OCR worker initialization failed:', error); // LOG
+        console.error('OCR worker initialization failed:', error);
         showStatus(t.ocrFailed, 'error');
       }
     };
@@ -139,16 +139,16 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
     return () => {
       if (workerInstance) { 
-        console.log("Terminating Tesseract worker during cleanup."); // LOG
+        console.log("Terminating Tesseract worker during cleanup.");
         workerInstance.terminate();
       }
     };
-  }, [t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus, workerReady]);
+  }, [t.loadingOCR, t.ocrReady, t.ocrFailed, showStatus]); // workerReady を依存配列から削除
 
   const analyzeImageContent = useCallback(async (imageBlob: Blob) => {
     if (!workerReady || !tesseractWorker) {
-      showStatus(t.loadingOCR, 'processing'); // Status might be misleading if worker is already initializing
-      console.warn("Worker not ready or tesseractWorker is null when analyzeImageContent called."); // LOG
+      showStatus(t.loadingOCR, 'processing');
+      console.warn("Worker not ready or tesseractWorker is null when analyzeImageContent called.");
       return;
     }
 
@@ -156,18 +156,18 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
       const img = new Image();
       img.onload = async function() { 
         showStatus(t.analyzingImage, 'processing');
-        console.log("Image loaded for analysis. Starting canvas processing."); // LOG
+        console.log("Image loaded for analysis. Starting canvas processing.");
 
         const canvas = analysisCanvasRef.current;
         if (!canvas) {
           showStatus(t.imageProcessingFailed, 'error');
-          console.error("Canvas ref is null."); // LOG
+          console.error("Canvas ref is null.");
           return resolve();
         }
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           showStatus(t.imageProcessingFailed, 'error');
-          console.error("Canvas context is null."); // LOG
+          console.error("Canvas context is null.");
           return resolve();
         }
 
@@ -188,23 +188,22 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
         canvas.width = width;
         canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
-        console.log("Image drawn to canvas. Calling tesseractWorker.recognize..."); // LOG
+        console.log("Image drawn to canvas. Calling tesseractWorker.recognize...");
 
         // OCRを実行
         try {
           // 動的にインポートしたTesseractオブジェクトからWord型を取得
           const Tesseract = await import('tesseract.js');
-          type TesseractWord = Tesseract.Word; // Word型をエイリアス
+          type TesseractWord = Tesseract.Word;
 
-          // Ensure tesseractWorker is not null just before calling recognize
-          if (!tesseractWorker) { // Double check here
-            console.error("tesseractWorker is null right before recognize call in analyzeImageContent."); // LOG
+          if (!tesseractWorker) {
+            console.error("tesseractWorker is null right before recognize call in analyzeImageContent.");
             showStatus(t.imageProcessingFailed, 'error');
             return resolve();
           }
 
           const { data: { text, words } } = await tesseractWorker.recognize(canvas);
-          console.log('OCR recognition completed.'); // LOG
+          console.log('OCR recognition completed.');
           console.log('OCR Raw Text:', text);
           console.log('OCR Words:', words);
 
@@ -213,7 +212,6 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
           const cellHeight = canvas.height / 9;
           let digitsFound = 0;
 
-          // word パラメータに TesseractWord 型を明示的に指定
           (words as TesseractWord[]).forEach((word: TesseractWord) => {
             const digit = word.text.trim();
             if (digit.length === 1 && digit >= '1' && digit <= '9') {
@@ -253,7 +251,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
 
       img.onerror = function() {
         showStatus(t.imageLoadingFailed, 'error');
-        console.error("Image loading failed in analyzeImageContent."); // LOG
+        console.error("Image loading failed in analyzeImageContent.");
         resolve();
       };
 
@@ -262,17 +260,16 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   }, [onSudokuDetected, showStatus, workerReady, tesseractWorker, t]); 
 
   const processImage = useCallback(async (imageBlob: Blob) => {
-    if (!workerReady) { // Initial check, might show 'loadingOCR' even if worker is ready
+    if (!workerReady) {
       showStatus(t.loadingOCR, 'processing');
-      console.warn("Worker not ready when processImage called. Status set to loadingOCR."); // LOG
-      // Do not return here. Let analyzeImageContent handle the full check.
+      console.warn("Worker not ready when processImage called. Status set to loadingOCR.");
     }
     try {
       showStatus(t.processingImage, 'processing');
       setPreviewImageUrl(URL.createObjectURL(imageBlob));
-      console.log("Calling analyzeImageContent..."); // LOG
+      console.log("Calling analyzeImageContent...");
       await analyzeImageContent(imageBlob);
-      console.log("analyzeImageContent finished."); // LOG
+      console.log("analyzeImageContent finished.");
     } catch (error) {
       console.error('画像処理エラー:', error);
       showStatus(t.imageProcessingFailed, 'error');
@@ -282,7 +279,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      console.log("File selected. Calling processImage."); // LOG
+      console.log("File selected. Calling processImage.");
       processImage(file);
     }
   }, [processImage]);
@@ -294,11 +291,11 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
     if (files.length > 0) {
       const file = files[0];
       if (file.type.startsWith('image/')) {
-        console.log("File dropped. Calling processImage."); // LOG
+        console.log("File dropped. Calling processImage.");
         processImage(file);
       } else {
         showStatus(t.selectImageFile, 'error');
-        console.warn("Non-image file dropped."); // LOG
+        console.warn("Non-image file dropped.");
       }
     }
   }, [processImage, showStatus, t]);
@@ -315,7 +312,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
   const handleReanalyze = useCallback(() => {
     if (previewImageUrl) {
       showStatus(t.analyzingImage, 'processing');
-      console.log("Reanalyze requested. Loading image from preview URL."); // LOG
+      console.log("Reanalyze requested. Loading image from preview URL.");
       const img = new Image();
       img.onload = () => {
           const canvas = analysisCanvasRef.current;
@@ -338,16 +335,14 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
               canvas.width = width;
               canvas.height = height;
               ctx.drawImage(img, 0, 0, width, height);
-              console.log("Image drawn to canvas for reanalyze. Calling tesseractWorker.recognize..."); // LOG
+              console.log("Image drawn to canvas for reanalyze. Calling tesseractWorker.recognize...");
 
 
-              if (tesseractWorker) { // Check worker here
-                // 再解析時も動的にインポートしてWord型を取得
+              if (tesseractWorker) {
                 import('tesseract.js').then(Tesseract => {
                     type TesseractWord = Tesseract.Word;
-                    // words に型を明示的に指定
                     tesseractWorker.recognize(canvas).then(({ data: { words } }: { data: { words: TesseractWord[] } }) => {
-                        console.log('OCR recognition completed for reanalyze.'); // LOG
+                        console.log('OCR recognition completed for reanalyze.');
                         const detectedGrid: GridType = createEmptySudokuGrid();
                         const cellWidth = canvas.width / 9;
                         const cellHeight = canvas.height / 9;
@@ -375,29 +370,28 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
                           setAnalysisInfo(`${t.analysisResult} 画像サイズ: ${Math.round(width)}×${Math.round(height)}。`);
                           showStatus(t.noDigitsFound, 'error');
                         }
-                    // ★修正点: ocrError に型を明示的に指定
                     }).catch((ocrError: any) => { 
                         console.error('OCR recognition failed during reanalyze:', ocrError);
                         showStatus(t.imageProcessingFailed, 'error');
                     });
                 });
               } else {
-                console.error("tesseractWorker is null during reanalyze before recognize call."); // LOG
+                console.error("tesseractWorker is null during reanalyze before recognize call.");
                 showStatus(t.imageProcessingFailed, 'error');
               }
           } else {
-            console.error("Canvas ref or context is null during reanalyze."); // LOG
+            console.error("Canvas ref or context is null during reanalyze.");
             showStatus(t.imageProcessingFailed, 'error');
           }
       };
       img.onerror = () => {
         showStatus(t.imageLoadingFailed, 'error');
-        console.error("Image loading failed for reanalyze."); // LOG
+        console.error("Image loading failed for reanalyze.");
       };
       img.src = previewImageUrl;
     } else {
       showStatus(t.selectImageFile, 'error');
-      console.warn("No preview image URL for reanalyze."); // LOG
+      console.warn("No preview image URL for reanalyze.");
     }
   }, [previewImageUrl, onSudokuDetected, showStatus, tesseractWorker, t]);
 
@@ -410,7 +404,7 @@ const SudokuScanner: React.FC<SudokuScannerProps> = ({ onSudokuDetected, languag
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
-    console.log("Scanner cleared."); // LOG
+    console.log("Scanner cleared.");
   };
 
   return (
