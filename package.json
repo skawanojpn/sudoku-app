@@ -18,7 +18,7 @@
     "react-dom": "^18",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
-    "tesseract.js": "^5.0.4"   // ★この行を追加またはバージョンを最新に更新
+    "tesseract.js": "^5.0.4"
   },
   "devDependencies": {
     "@types/node": "^20",
